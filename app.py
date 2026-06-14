@@ -1,12 +1,13 @@
 import streamlit as st
 from langchain_huggingface import HuggingFaceEndpoint
-from langchain.text_splitter import CharacterTextSplitter
+from langchain_text_splitters import CharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 import os
 
+# The rest of your code remains the same...
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Socrates Tutor", layout="wide")
 
