@@ -2,6 +2,7 @@ streamlit
 langchain==0.1.16
 langchain-community==0.0.34
 langchain-huggingface==0.0.1
-pypdf
+pymupdf
 sentence-transformers
 faiss-cpu
+langchain-text-splitters
