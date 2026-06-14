@@ -1,7 +1,8 @@
 streamlit
 langchain==0.1.16
 langchain-community==0.0.34
-langchain-huggingface==0.0.1
+langchain-google-genai
 pymupdf
 faiss-cpu
 langchain-text-splitters
+protobuf==4.25.3
