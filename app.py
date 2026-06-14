@@ -29,23 +29,25 @@ if not gemini_key:
     st.warning("Awaiting API Key for Neural Initialization...")
     st.stop()
 
-# --- STABLE NEURAL ENGINE (v1 Endpoint) ---
+# --- THE "FAIL-SAFE" NEURAL ENGINE ---
 def execute_neural_query(prompt, key):
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={key}"
-    headers = {'Content-Type': 'application/json'}
-    data = {"contents": [{"parts": [{"text": prompt}]}]}
+    # We try multiple model endpoints to avoid the 404 error
+    models_to_try = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-pro"]
     
-    try:
-        response = requests.post(url, headers=headers, json=data, timeout=45)
-        res_json = response.json()
+    for model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
+        headers = {'Content-Type': 'application/json'}
+        data = {"contents": [{"parts": [{"text": prompt}]}]}
         
-        if response.status_code == 200:
-            return res_json['candidates'][0]['content']['parts'][0]['text']
-        else:
-            error_msg = res_json.get('error', {}).get('message', 'API Error')
-            return f"❌ NEURAL ERROR {response.status_code}: {error_msg}"
-    except Exception as e:
-        return f"❌ TRANSPORT FAILURE: {str(e)}"
+        try:
+            response = requests.post(url, headers=headers, json=data, timeout=30)
+            if response.status_code == 200:
+                res_json = response.json()
+                return res_json['candidates'][0]['content']['parts'][0]['text']
+        except:
+            continue # Try next model if this one fails
+            
+    return "❌ CRITICAL ERROR: All neural models (Flash/Pro) are currently unreachable. Please check your API key permissions at aistudio.google.com."
 
 # --- MODULE 1: DISCOVERY HUB ---
 if choice == "Module 1: Discovery Hub":
@@ -53,16 +55,16 @@ if choice == "Module 1: Discovery Hub":
     col1, col2 = st.columns(2)
     with col1:
         st.write("### 📚 Core Disciplines")
-        if st.button("Learn Math"): st.toast("Logic Engine: Math Ready")
-        if st.button("Learn Core CS"): st.toast("Logic Engine: CS Ready")
-        if st.button("Learn AI & ML"): st.toast("Logic Engine: AI Ready")
-        if st.button("Learn Mechanical Engineering"): st.toast("Logic Engine: Mech Ready")
+        if st.button("Learn Math"): st.toast("Ready")
+        if st.button("Learn Core CS"): st.toast("Ready")
+        if st.button("Learn AI & ML"): st.toast("Ready")
+        if st.button("Learn Mechanical Engineering"): st.toast("Ready")
     with col2:
         st.write("### 🔗 Intersections")
-        if st.button("AI & Physics Intersection"): st.toast("Synthesizing Intersection...")
-        if st.button("CS & EE Intersection"): st.toast("Synthesizing Intersection...")
-        if st.button("AI, CS & ECE Intersection"): st.toast("Synthesizing Intersection...")
-        if st.button("Mechanical & AI Intersection"): st.toast("Synthesizing Intersection...")
+        if st.button("AI & Physics Intersection"): st.toast("Synthesizing...")
+        if st.button("CS & EE Intersection"): st.toast("Synthesizing...")
+        if st.button("AI, CS & ECE Intersection"): st.toast("Synthesizing...")
+        if st.button("Mechanical & AI Intersection"): st.toast("Synthesizing...")
 
 # --- MODULE 2: ROADMAPS ---
 elif choice == "Module 2: Synthesis Roadmaps":
@@ -71,10 +73,10 @@ elif choice == "Module 2: Synthesis Roadmaps":
     branches = st.multiselect("Core Research Branches", ["CSE", "AI & ML", "EEE", "ECE", "MECH", "MATH", "PHYSICS"])
     if st.button("Synthesize Academic Roadmap"):
         if branches:
-            st.success(f"Roadmap for {exam} ({', '.join(branches)}) Synthesized")
+            st.success(f"Roadmap Generated")
             st.table({"Phase": ["Theory", "Domain", "Practice"], "Focus": ["Math", f"{branches[0]} Core", "PYQs"]})
         else:
-            st.warning("Please select at least one branch.")
+            st.warning("Please select a branch.")
 
 # --- MODULE 4: TEXTBOOK AGENT ---
 elif choice == "Module 4: Textbook Agent":
@@ -84,10 +86,10 @@ elif choice == "Module 4: Textbook Agent":
     
     if file:
         if "pdf_text" not in st.session_state:
-            with st.spinner("Extracting Global Semantic Context..."):
+            with st.spinner("Extracting Global Context..."):
                 doc = fitz.open(stream=file.read(), filetype="pdf")
                 st.session_state.pdf_text = "".join([page.get_text() for page in doc])
-                st.success("Global Context Cached.")
+                st.success("Context Cached.")
 
     query = st.chat_input("Input research/conceptual query...")
     if query:
@@ -96,16 +98,18 @@ elif choice == "Module 4: Textbook Agent":
         else:
             with st.chat_message("user"): st.write(query)
             with st.spinner("Socrates is analyzing..."):
+                # Safety check: send only the first 200k characters to avoid timeout
+                context = st.session_state.pdf_text[:200000]
                 prompt = f"""
                 Persona: {tone}
-                Task: Pedagogical synthesis from context. Use point-wise lists and stickers/emojis as requested.
+                Task: Pedagogical synthesis. Use point-wise lists and emojis.
                 
                 Protocol:
                 1. Use the [TEXTBOOK CONTEXT] provided below.
                 2. If answer found: End with [SOURCE: VERIFIED TEXTBOOK].
                 3. If extrapolated: Start with [SOURCE: PARAMETRIC AI KNOWLEDGE].
                 
-                TEXTBOOK CONTEXT: {st.session_state.pdf_text[:300000]}
+                TEXTBOOK CONTEXT: {context}
                 
                 USER QUERY: {query}
                 """
