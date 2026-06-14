@@ -1,8 +1,5 @@
 streamlit
-langchain==0.1.16
-langchain-community==0.0.34
-langchain-google-genai==1.0.3
 pymupdf
 faiss-cpu
 langchain-text-splitters
-protobuf==3.20.3
+requests
