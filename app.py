@@ -1,92 +1,75 @@
 import streamlit as st
-from langchain_huggingface import HuggingFaceEndpoint
-from langchain_text_splitters import CharacterTextSplitter
+import os
+from langchain_huggingface import HuggingFaceEndpoint, HuggingFaceEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
-import os
+from langchain.text_splitter import CharacterTextSplitter
 
-# The rest of your code remains the same...
-# --- PAGE CONFIG ---
 st.set_page_config(page_title="Socrates Tutor", layout="wide")
 
-# Sidebar for API Key (Secure & No-Card)
+# Sidebar for API Key
 with st.sidebar:
-    st.title("Settings")
-    api_key = st.text_input("Enter HuggingFace API Token", type="password")
-    st.info("Get a free token at huggingface.co")
+    st.title("🔑 Setup")
+    api_key = st.text_input("HuggingFace Token", type="password")
+    st.info("Get it free at: huggingface.co/settings/tokens")
 
 if not api_key:
-    st.warning("Please enter your HuggingFace API key in the sidebar to start.")
+    st.warning("Enter your API Token to begin.")
     st.stop()
 
-# Initialize LLM (Using Mistral-7B - Free and Powerful)
+# Initialize AI
 repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
-llm = HuggingFaceEndpoint(repo_id=repo_id, huggingfacehub_api_token=api_key)
+llm = HuggingFaceEndpoint(repo_id=repo_id, huggingfacehub_api_token=api_key, temperature=0.5)
 
-# --- NAVIGATION ---
-menu = ["Home (Page 1)", "Roadmaps (Page 2)", "Job Titles (Page 3)", "Read a Book (Page 4)", "Research Vision (Page 5)", "Research Gaps (Page 6/7)"]
-choice = st.sidebar.selectbox("Navigate Pages", menu)
+# Navigation
+menu = ["Page 1: Home", "Page 2: Roadmaps", "Page 4: AI Reader (RAG)", "Page 6: Research Gaps"]
+choice = st.sidebar.selectbox("Go to:", menu)
 
-# --- PAGE 1: SOCRATES TUTOR HOME ---
-if choice == "Home (Page 1)":
+if choice == "Page 1: Home":
     st.title("Socrates Tutor")
+    st.write("### Interdisciplinary Learning Hub")
     col1, col2 = st.columns(2)
-    
     with col1:
-        if st.button("Learn Math"): st.info("Loading Math Modules...")
-        if st.button("Learn Physics"): st.info("Loading Physics Modules...")
-        if st.button("Learn EEE/ECE"): st.info("Loading Engineering Modules...")
-        
+        st.button("Learn Math")
+        st.button("Learn Physics")
     with col2:
-        st.subheader("Interdisciplinary AI")
-        st.button("AI & Physics Intersection")
-        st.button("CS & EE Intersection")
+        st.button("AI & CS Intersection")
+        st.button("EEE & ECE Intersection")
 
-# --- PAGE 2: ROADMAPS ---
-elif choice == "Roadmaps (Page 2)":
-    st.title("Exam Roadmaps & Syllabus")
+elif choice == "Page 2: Roadmaps":
+    st.title("Exam Roadmaps")
     exam = st.selectbox("Select Exam", ["GATE", "IIT JAM", "CUET", "CSIR NET"])
-    branch = st.multiselect("Select Branch", ["CS", "AI", "ECE", "MATH", "PHYSICS"])
-    
-    if st.button("Generate Syllabus"):
-        st.write(f"Displaying Roadmap for {exam} - {branch}")
-        st.table({"Topic": ["Unit 1: Foundation", "Unit 2: Advanced Concepts"], "Status": ["Available", "Coming Soon"]})
+    st.write(f"Generating roadmap for {exam}...")
+    st.image("https://via.placeholder.com/600x300.png?text=Syllabus+Visualization") # Placeholder for UI
 
-# --- PAGE 4: READ A BOOK (THE AI PART) ---
-elif choice == "Read a Book (Page 4)":
-    st.title("Interactive Reader (RAG)")
-    uploaded_file = st.file_uploader("Upload a PDF Book", type="pdf")
-    tone = st.selectbox("Explanation Tone", ["Professor", "Ivy League Student", "GATE Coach", "Corporate Interviewer"])
+elif choice == "Page 4: AI Reader (RAG)":
+    st.title("AI Document Reader")
+    uploaded_file = st.file_uploader("Upload Paper/Book (PDF)", type="pdf")
+    tone = st.selectbox("Explanation Tone", ["Professor", "GATE Coach", "Industry Expert"])
     
     if uploaded_file:
         with open("temp.pdf", "wb") as f:
             f.write(uploaded_file.getvalue())
         
-        # Simple RAG Logic
+        # Theory: This is the RAG Pipeline
         loader = PyPDFLoader("temp.pdf")
-        documents = loader.load()
-        text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-        texts = text_splitter.split_documents(documents)
-        embeddings = HuggingFaceEmbeddings()
-        db = FAISS.from_documents(texts, embeddings)
+        pages = loader.load()
+        text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+        docs = text_splitter.split_documents(pages)
+        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        vectorstore = FAISS.from_documents(docs, embeddings)
         
-        query = st.text_input("Ask a question about the book:")
+        query = st.text_input("Ask a question from the PDF:")
         if query:
-            qa_chain = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=db.as_retriever())
-            prompt = f"Act as a {tone}. Answer this: {query}"
-            response = qa_chain.run(prompt)
-            st.markdown(f"### Answer:\n{response}")
+            qa = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=vectorstore.as_retriever())
+            response = qa.invoke(f"In the tone of a {tone}, answer: {query}")
+            st.markdown(f"**AI Response:** {response['result']}")
 
-# --- PAGE 6 & 7: RESEARCH GAPS ---
-elif choice == "Research Gaps (Page 6/7)":
+elif choice == "Page 6: Research Gaps":
     st.title("Research Gap Analysis")
-    topic = st.text_input("Topic Name (e.g., Genetic Algorithms)")
-    
-    if topic:
-        st.subheader(f"Literature Review for {topic}")
-        with st.spinner("AI is analyzing research gaps..."):
-            gap_prompt = f"Analyze current research gaps and provide a literature review for the topic: {topic}. Format as a list of papers and details."
-            result = llm.invoke(gap_prompt)
-            st.write(result)
+    topic = st.text_input("Enter Topic (e.g. Genetic Algorithms)")
+    if st.button("Analyze Gaps"):
+        with st.spinner("Searching literature..."):
+            ans = llm.invoke(f"Identify 3 major research gaps for the topic: {topic}. Format as a list.")
+            st.write(ans)
