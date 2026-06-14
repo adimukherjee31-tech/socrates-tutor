@@ -17,7 +17,8 @@ st.markdown("""
 # --- SIDEBAR ---
 with st.sidebar:
     st.title("🔬 Neural Orchestrator")
-    gemini_key = st.text_input("Gemini API Key", type="password")
+    raw_key = st.text_input("Gemini API Key", type="password")
+    gemini_key = raw_key.strip() # The Fix: Removes accidental spaces
     st.info("Paradigm: Holistic Contextual Synthesis (2026 Standard)")
     
     st.divider()
@@ -28,15 +29,25 @@ if not gemini_key:
     st.warning("Awaiting API Key for Neural Initialization...")
     st.stop()
 
-# --- NEURAL ENGINE ---
+# --- IMPROVED NEURAL ENGINE (With Diagnostics) ---
 def execute_neural_query(prompt, key):
+    # Standard 2026 REST Endpoint for Gemini 1.5 Flash
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
+    headers = {'Content-Type': 'application/json'}
     data = {"contents": [{"parts": [{"text": prompt}]}]}
+    
     try:
-        response = requests.post(url, json=data)
-        return response.json()['candidates'][0]['content']['parts'][0]['text']
-    except:
-        return "CRITICAL ERROR: Neural Link Failed. Verify API Credentials."
+        response = requests.post(url, headers=headers, json=data, timeout=30)
+        res_json = response.json()
+        
+        if response.status_code == 200:
+            return res_json['candidates'][0]['content']['parts'][0]['text']
+        else:
+            # PhD Level Diagnostic Feedback
+            error_details = res_json.get('error', {}).get('message', 'Unknown API Error')
+            return f"❌ NEURAL ERROR {response.status_code}: {error_details}"
+    except Exception as e:
+        return f"❌ TRANSPORT FAILURE: {str(e)}"
 
 # --- MODULE 1: DISCOVERY HUB ---
 if choice == "Module 1: Discovery Hub":
@@ -44,16 +55,16 @@ if choice == "Module 1: Discovery Hub":
     col1, col2 = st.columns(2)
     with col1:
         st.write("### 📚 Core Disciplines")
-        if st.button("Learn Math"): st.toast("Loading Math...")
-        if st.button("Learn Core CS"): st.toast("Loading CS...")
-        if st.button("Learn AI & ML"): st.toast("Loading AI...")
-        if st.button("Learn Mechanical Engineering"): st.toast("Loading Mech...")
+        if st.button("Learn Math"): st.toast("Loading Math Logic...")
+        if st.button("Learn Core CS"): st.toast("Loading Systems Logic...")
+        if st.button("Learn AI & ML"): st.toast("Loading Stochastic Logic...")
+        if st.button("Learn Mechanical Engineering"): st.toast("Loading Dynamics Logic...")
     with col2:
         st.write("### 🔗 Intersections")
-        if st.button("AI & Physics Intersection"): st.toast("Synthesizing...")
-        if st.button("CS & EE Intersection"): st.toast("Synthesizing...")
-        if st.button("AI, CS & ECE Intersection"): st.toast("Synthesizing...")
-        if st.button("Mechanical & AI Intersection"): st.toast("Synthesizing...")
+        if st.button("AI & Physics Intersection"): st.toast("Synthesizing Neural-Physics...")
+        if st.button("CS & EE Intersection"): st.toast("Synthesizing Edge Intelligence...")
+        if st.button("AI, CS & ECE Intersection"): st.toast("Synthesizing VLSI-AI...")
+        if st.button("Mechanical & AI Intersection"): st.toast("Synthesizing Generative Design...")
 
 # --- MODULE 2: ROADMAPS ---
 elif choice == "Module 2: Synthesis Roadmaps":
@@ -64,16 +75,15 @@ elif choice == "Module 2: Synthesis Roadmaps":
         if branches:
             st.success(f"Roadmap for {exam} ({', '.join(branches)})")
             st.table({"Phase": ["Foundational Theory", "Domain Specialization", "Empirical Evaluation"], 
-                      "Focus": ["Mathematical Logic", f"{branches[0]} SOTA Architecture", "Paper Review"]})
+                      "Focus": ["Mathematical Logic", f"{branches[0]} Core Concepts", "Paper Review"]})
 
-# --- MODULE 4: TEXTBOOK AGENT (FIXED) ---
+# --- MODULE 4: TEXTBOOK AGENT ---
 elif choice == "Module 4: Textbook Agent":
     st.title("🔍 Holistic Textbook Assistant")
     file = st.file_uploader("Upload Pedagogical Source (PDF)", type="pdf")
     tone = st.selectbox("Pedagogical Style", ["Professor Tone", "Munnabhai (Hinglish)", "Simple (ELI5)"])
     
     if file:
-        # Consistency fix: using 'pdf_text' everywhere
         if "pdf_text" not in st.session_state:
             with st.spinner("Extracting Global Semantic Context..."):
                 doc = fitz.open(stream=file.read(), filetype="pdf")
@@ -86,17 +96,18 @@ elif choice == "Module 4: Textbook Agent":
             st.error("Please upload a PDF first!")
         else:
             with st.chat_message("user"): st.write(query)
-            with st.spinner("Analyzing Global Context..."):
+            with st.spinner("Synthesizing Answer..."):
+                # Adjusted context length to 250k for maximum API stability
                 prompt = f"""
                 Persona: {tone}
-                Goal: Pedagogical synthesis. Use point-wise lists and emojis if requested.
+                Task: Pedagogical synthesis. Use emojis and point-wise lists as requested by user.
                 
                 Protocol:
                 1. Use the [TEXTBOOK CONTEXT] provided below.
                 2. If answer found: End with [SOURCE: VERIFIED TEXTBOOK].
                 3. If extrapolated: Start with [SOURCE: PARAMETRIC AI KNOWLEDGE].
                 
-                TEXTBOOK CONTEXT: {st.session_state.pdf_text[:400000]}
+                TEXTBOOK CONTEXT: {st.session_state.pdf_text[:250000]}
                 
                 USER QUERY: {query}
                 """
