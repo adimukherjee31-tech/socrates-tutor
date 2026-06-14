@@ -1,7 +1,7 @@
 import streamlit as st
 import os
-from langchain_huggingface import HuggingFaceEndpoint
-from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
+import tempfile
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -9,28 +9,32 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Socrates AI Tutor", layout="wide", page_icon="🎓")
 
-# --- SIDEBAR ---
+# --- SIDEBAR & AUTH ---
 with st.sidebar:
     st.title("🔑 Setup")
-    api_key = st.text_input("Enter HuggingFace Token", type="password")
-    st.info("Get it free at: huggingface.co/settings/tokens")
+    # Using Gemini API Key for stability
+    api_key = st.text_input("Enter Google (Gemini) API Key", type="password")
+    st.info("Get a free key at: aistudio.google.com")
     
     st.divider()
     menu = ["Page 1: Home", "Page 2: Exam Roadmaps", "Page 4: AI Textbook Reader", "Page 6: Research Gaps"]
     choice = st.selectbox("Navigation", menu)
 
 if not api_key:
-    st.warning("Please enter your API Token in the sidebar to begin.")
+    st.warning("Please enter your Gemini API Key in the sidebar to begin.")
     st.stop()
 
-# Initialize LLM (Mistral 7B - Cloud API)
-repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
-llm = HuggingFaceEndpoint(repo_id=repo_id, huggingfacehub_api_token=api_key, temperature=0.3)
+# Initialize Gemini LLM
+llm = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash",
+    google_api_key=api_key,
+    temperature=0.3
+)
 
-# Initialize Cloud Embeddings (Avoids Connection/Torch Errors)
-embeddings = HuggingFaceInferenceAPIEmbeddings(
-    api_key=api_key, 
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
+# Initialize Gemini Embeddings (Very stable on cloud)
+embeddings = GoogleGenerativeAIEmbeddings(
+    model="models/embedding-001",
+    google_api_key=api_key
 )
 
 # --- PAGE 1: HOME ---
@@ -59,7 +63,7 @@ elif choice == "Page 2: Exam Roadmaps":
         st.success(f"Roadmap for {exam} Generated")
         st.table({"Phase": ["Basics", "Core", "Practice"], "Topics": ["Foundations", "Syllabus Topics", "PYQs"]})
 
-# --- PAGE 4: AI TEXTBOOK READER (GROUNDED RAG) ---
+# --- PAGE 4: AI TEXTBOOK READER (STABLE GEMINI RAG) ---
 elif choice == "Page 4: AI Textbook Reader":
     st.title("Intelligent Textbook Assistant")
     uploaded_file = st.file_uploader("Upload Textbook (PDF)", type="pdf")
@@ -72,27 +76,34 @@ elif choice == "Page 4: AI Textbook Reader":
     }
 
     if uploaded_file:
-        if "db" not in st.session_state or st.sidebar.button("Re-process PDF"):
-            with st.spinner("Analyzing materials..."):
-                with open("temp.pdf", "wb") as f:
-                    f.write(uploaded_file.getvalue())
-                loader = PyMuPDFLoader("temp.pdf")
-                docs = loader.load()
-                splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
-                chunks = splitter.split_documents(docs)
-                st.session_state.db = FAISS.from_documents(chunks, embeddings)
+        # Avoid re-processing the PDF every time
+        if "vector_db" not in st.session_state or st.sidebar.button("Re-process PDF"):
+            with st.spinner("Analyzing materials with Gemini..."):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                    tmp.write(uploaded_file.read())
+                    tmp_path = tmp.name
+                
+                loader = PyMuPDFLoader(tmp_path)
+                data = loader.load()
+                
+                splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
+                chunks = splitter.split_documents(data)
+                
+                # Create Vector DB
+                st.session_state.vector_db = FAISS.from_documents(chunks, embeddings)
+                os.remove(tmp_path)
                 st.success("Indexing Complete!")
 
         query = st.chat_input("Ask a question from the book...")
         if query:
             with st.chat_message("user"): st.write(query)
             
-            with st.spinner("Socrates is thinking..."):
+            with st.spinner("Socrates is analyzing context..."):
                 # Retrieve Context
-                context_docs = st.session_state.db.similarity_search(query, k=3)
-                context_text = "\n\n".join([d.page_content for d in context_docs])
+                docs = st.session_state.vector_db.similarity_search(query, k=4)
+                context_text = "\n\n".join([d.page_content for d in docs])
 
-                # GROUNDING RULES (From your snippet)
+                # THE GROUNDED PROMPT (From your older snippet)
                 prompt = f"""
                 You are Socrates, a pedagogical tutor. Use the provided Context to answer the Question.
                 
@@ -109,14 +120,14 @@ elif choice == "Page 4: AI Textbook Reader":
                 
                 response = llm.invoke(prompt)
                 with st.chat_message("assistant"):
-                    st.markdown(response)
+                    st.markdown(response.content)
 
 # --- PAGE 6: RESEARCH GAPS ---
 elif choice == "Page 6: Research Gaps":
     st.title("Advanced Research Gap Analysis")
     topic = st.text_input("Enter Topic Name")
     if topic and st.button("Analyze Gaps"):
-        with st.spinner("Synthesizing..."):
-            ans = llm.invoke(f"PhD Supervisor: Identify 3 research gaps for '{topic}'.")
+        with st.spinner("Synthesizing current research gaps..."):
+            ans = llm.invoke(f"PhD Supervisor: Identify 3 unique research gaps for '{topic}'. Provide a literature review vision.")
             st.markdown("### 🔍 Gap Analysis Results")
-            st.write(ans)
+            st.write(ans.content)
