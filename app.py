@@ -1,6 +1,8 @@
 import streamlit as st
 import os
-from langchain_huggingface import HuggingFaceEndpoint, HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEndpoint
+# This is the secret fix: using the API instead of local torch
+from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings 
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -22,12 +24,8 @@ if not api_key:
     st.stop()
 
 # Initialize AI Brain
-try:
-    repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
-    llm = HuggingFaceEndpoint(repo_id=repo_id, huggingfacehub_api_token=api_key, temperature=0.3, max_new_tokens=512)
-except Exception as e:
-    st.error("Connection Error. Please check your Token.")
-    st.stop()
+repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
+llm = HuggingFaceEndpoint(repo_id=repo_id, huggingfacehub_api_token=api_key, temperature=0.3)
 
 # --- PAGE 1: HOME ---
 if choice == "Page 1: Home":
@@ -56,58 +54,62 @@ elif choice == "Page 2: Exam Roadmaps":
     if st.button("Display Syllabus & Roadmap"):
         st.info(f"Generating Roadmap for {exam}...")
         st.success("✅ Roadmap Generated Successfully")
-        st.table({"Phase": ["Foundational", "Core Technical", "Practice"], "Focus": ["Math", f"Branch Topics", "PYQs"], "Status": ["Ready", "Ready", "Soon"]})
+        st.table({"Phase": ["Basics", "Advanced", "Practice"], "Focus": ["Foundations", "Syllabus Core", "Previous Papers"], "Status": ["Ready", "Ready", "Soon"]})
 
-# --- PAGE 4: AI READER (STABLE RAG) ---
+# --- PAGE 4: AI READER (NO-TORCH STABLE VERSION) ---
 elif choice == "Page 4: AI Textbook Reader":
     st.title("Intelligent Textbook Assistant")
     uploaded_file = st.file_uploader("Upload Large PDF (Textbook)", type="pdf")
-    tone = st.selectbox("Explanation Style", ["Professor Tone", "UGC/GATE Coach", "Corporate Interviewer", "Ivy League Student", "Munnabhai Lingo"])
+    tone = st.selectbox("Explanation Style", ["Professor Tone", "UGC/GATE Coach", "Munnabhai Lingo", "Corporate Interviewer"])
     
     if uploaded_file:
-        # Use session state to avoid re-processing the PDF on every question
-        if "vectorstore" not in st.session_state or st.sidebar.button("Re-process PDF"):
-            with st.spinner("Analyzing document... (One-time process)"):
+        # Use session state to keep data between questions
+        if "vectorstore" not in st.session_state or st.sidebar.button("Re-process Document"):
+            with st.spinner("Processing PDF via Cloud API..."):
                 with open("temp.pdf", "wb") as f:
                     f.write(uploaded_file.getvalue())
+                
                 loader = PyMuPDFLoader("temp.pdf")
                 data = loader.load()
-                splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
-                docs = splitter.split_documents(data)
-                embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+                
+                # Split into smaller chunks for API efficiency
+                text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
+                docs = text_splitter.split_documents(data)
+                
+                # FIXED: This uses the API key to do math in the cloud, avoiding the Torch crash
+                embeddings = HuggingFaceInferenceAPIEmbeddings(
+                    api_key=api_key, 
+                    model_name="sentence-transformers/all-MiniLM-L6-v2"
+                )
+                
                 st.session_state.vectorstore = FAISS.from_documents(docs, embeddings)
-                st.success("Document analyzed!")
+                st.success("Analysis Complete!")
 
-        query = st.text_input("Ask a question about any concept in the book:")
+        query = st.text_input("Ask a question about the book:")
         if query:
             with st.spinner("Thinking..."):
-                # STEP 1: Manually Retrieve chunks
-                search_results = st.session_state.vectorstore.similarity_search(query, k=3)
-                context_text = "\n\n".join([doc.page_content for doc in search_results])
+                # Manual Retrieval
+                docs = st.session_state.vectorstore.similarity_search(query, k=3)
+                context = "\n\n".join([d.page_content for d in docs])
                 
-                # STEP 2: Manually Construct Prompt
-                final_prompt = f"""
-                You are an expert tutor acting in a {tone}. 
-                Use the following context from a textbook to answer the question.
-                
-                Context: {context_text}
-                
+                # Manual Prompt
+                prompt = f"""Act as a {tone}. Use the context below from a textbook to answer.
+                Context: {context}
                 Question: {query}
-                
                 Answer:"""
                 
-                # STEP 3: Directly call LLM (Bypasses the buggy QA Chain)
-                response = llm.invoke(final_prompt)
+                response = llm.invoke(prompt)
                 st.markdown(f"### Answer:\n {response}")
 
 # --- PAGE 6: RESEARCH GAPS ---
 elif choice == "Page 6: Research Gaps":
     st.title("Advanced Research Gap Analysis")
     topic = st.text_input("Enter Topic Name")
-    exam_context = st.selectbox("Context", ["CSIR NET", "UGC NET", "GATE"])
+    exam_context = st.selectbox("Syllabus Reference", ["UGC NET", "CSIR NET", "GATE"])
+    
     if topic and st.button("Generate Gap Analysis"):
         with st.spinner("Synthesizing..."):
-            gap_prompt = f"Act as a PhD Supervisor. Identify 3 research gaps for '{topic}' within '{exam_context}' syllabus."
+            gap_prompt = f"PhD Level: Find 3 research gaps for {topic} in context of {exam_context} syllabus."
             analysis = llm.invoke(gap_prompt)
             st.markdown("### 🔍 Gap Analysis Results")
             st.write(analysis)
