@@ -1,144 +1,116 @@
 import streamlit as st
+import requests
+import fitz  # PyMuPDF
 import os
-import tempfile
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain_community.document_loaders import PyMuPDFLoader
-from langchain_community.vectorstores import FAISS
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.output_parsers import StrOutputParser
 
-# --- ARCHITECTURAL CONFIG ---
-st.set_page_config(page_title="Socrates AI: Research Framework", layout="wide", page_icon="🎓")
+# --- RESEARCH FRAMEWORK CONFIG ---
+st.set_page_config(page_title="Socrates AI: Pedagogical Framework", layout="wide", page_icon="🎓")
 
-# --- SIDEBAR & AUTH ---
+# --- UI STYLING ---
+st.markdown("""
+    <style>
+    .stButton>button { width: 100%; border-radius: 8px; height: 3.5em; background-color: #1E1E1E; color: white; font-weight: bold; }
+    .main { background-color: #F0F2F6; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- SIDEBAR: SYSTEM ORCHESTRATION ---
 with st.sidebar:
-    st.title("🔬 Neural Engine Setup")
-    raw_key = st.text_input("Enter Gemini API Key", type="password")
-    api_key = raw_key.strip() 
-    st.info("Using Gemini 1.5 Flash + Text-Embedding-004 (SOTA)")
+    st.title("🔬 Neural Orchestrator")
+    gemini_key = st.text_input("Gemini 1.5 SOTA API Key", type="password")
+    st.info("Environment: Python 3.14 \nParadigm: Holistic Contextual Synthesis")
     
     st.divider()
-    menu = ["Page 1: Home", "Page 2: Exam Roadmaps", "Page 4: Research Agent (RAG)", "Page 6: Gap Analysis"]
-    choice = st.selectbox("Orchestration Modules", menu)
+    menu = ["Module 1: Discovery Hub", "Module 2: Synthesis Roadmaps", "Module 4: Textbook Agent", "Module 6: Gap Analysis"]
+    choice = st.selectbox("Active Module", menu)
 
-if not api_key:
-    st.warning("Initialize System with API Key.")
+if not gemini_key:
+    st.warning("Awaiting API Key for Neural Initialization...")
     st.stop()
 
-# Force key into environment for sub-services
-os.environ["GOOGLE_API_KEY"] = api_key
+# --- STABLE NEURAL CALL (Direct 2026 Standard) ---
+def execute_neural_query(prompt, key):
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
+    data = {"contents": [{"parts": [{"text": prompt}]}]}
+    try:
+        response = requests.post(url, json=data)
+        return response.json()['candidates'][0]['content']['parts'][0]['text']
+    except:
+        return "CRITICAL ERROR: Neural Link Failed. Verify API Credentials."
 
-# --- COMPONENT INITIALIZATION ---
-try:
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3)
-    # THE FIX: Using text-embedding-004, the newest SOTA model
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
-except Exception as e:
-    st.error(f"Initialization Failed: {e}")
-    st.stop()
-
-# Helper for Context Injection
-def format_docs(docs):
-    return "\n\n".join(doc.page_content for doc in docs)
-
-# --- PAGE 1: INTERDISCIPLINARY HOME ---
-if choice == "Page 1: Home":
-    st.title("🎓 Socrates: Pedagogical AI Tutor")
-    st.subheader("PhD Framework for Interdisciplinary Knowledge Transfer")
+# --- MODULE 1: DISCOVERY HUB ---
+if choice == "Module 1: Discovery Hub":
+    st.title("🎓 Socrates: Interdisciplinary Learning Hub")
+    st.subheader("Pedagogical Discovery Verticals")
+    
     col1, col2 = st.columns(2)
     with col1:
-        st.write("### 📚 Core Verticals")
-        st.button("Learn Math")
-        st.button("Learn Core CS")
-        st.button("Learn AI & ML")
-        st.button("Learn Mechanical Engineering")
+        st.write("### 📚 Core Disciplines")
+        if st.button("Learn Mathematics"): st.toast("Initializing Logic Engine...")
+        if st.button("Learn Core CS"): st.toast("Initializing Systems Engine...")
+        if st.button("Learn AI & ML"): st.toast("Initializing Stochastic Engine...")
+        if st.button("Learn Mechanical Engineering"): st.toast("Initializing Dynamics Engine...")
     with col2:
-        st.write("### 🔗 Intersections")
-        st.button("Neural-Physics Intersection")
-        st.button("Embedded AI (CS/ECE)")
-        st.button("Mechanical Intelligence")
+        st.write("### 🔗 Interdisciplinary Intersections")
+        if st.button("AI & Physics Intersection"): st.toast("Synthesizing Neural-Physics...")
+        if st.button("CS & EE Intersection"): st.toast("Synthesizing Edge Intelligence...")
+        if st.button("AI, CS & ECE Intersection"): st.toast("Synthesizing VLSI-AI...")
+        if st.button("Mechanical & AI Intersection"): st.toast("Synthesizing Generative Design...")
 
-# --- PAGE 2: ROADMAPS ---
-elif choice == "Page 2: Exam Roadmaps":
-    st.title("Curriculum Roadmaps")
-    exam = st.selectbox("Standardized Exam", ["UGC NET", "GATE", "CSIR NET", "IIT JAM", "CUET"])
-    branch_list = ["CSE", "AI & ML", "EEE", "ECE", "MECH", "MATH", "PHYSICS"]
-    branch = st.multiselect("Research Branches", branch_list)
-    if st.button("Synthesize Roadmap"):
-        if branch:
-            st.success(f"Roadmap Generated for {exam}")
-            st.table({"Phase": ["Abstract Theory", "Domain Depth", "Practice"], "Topic": ["Math/Logic", f"{branch[0]} Core", "PYQs"]})
+# --- MODULE 2: SYNTHESIS ROADMAPS ---
+elif choice == "Module 2: Synthesis Roadmaps":
+    st.title("Curriculum Synthesis Roadmap")
+    exam = st.selectbox("Academic Target", ["UGC NET", "GATE", "CSIR NET", "IIT JAM", "CUET"])
+    # Branches updated per 2026 CSE/AI requirements
+    branches = st.multiselect("Core Research Branches", ["CSE", "AI & ML", "EEE", "ECE", "MECH", "MATH", "PHYSICS"])
+    if st.button("Synthesize Academic Roadmap"):
+        if branches:
+            st.success(f"Optimized Roadmap for {exam} ({', '.join(branches)})")
+            st.table({
+                "Phase": ["Foundational Theory", "Domain Specialization", "Empirical Evaluation"], 
+                "Focus": ["Mathematical Logic & Probability", f"{branches[0]} SOTA Architecture", "Benchmarking & Paper Review"]
+            })
 
-# --- PAGE 4: RESEARCH AGENT (RAG PIPELINE) ---
-elif choice == "Page 4: Research Agent (RAG)":
-    st.title("🔍 Advanced Research Agent (RAG)")
-    st.markdown("Implementing **Retrieval-Augmented Generation** for grounded pedagogy.")
+# --- MODULE 4: TEXTBOOK AGENT (THE INNOVATION) ---
+elif choice == "Module 4: Textbook Agent":
+    st.title("🔍 Holistic Textbook Assistant")
+    st.markdown("##### Research Paradigm: Direct High-Fidelity Context Injection")
+    file = st.file_uploader("Upload Pedagogical Source (PDF)", type="pdf")
+    tone = st.selectbox("Pedagogical Style", ["Professor Tone", "Munnabhai (Hinglish)", "Simple (ELI5)"])
     
-    file = st.file_uploader("Upload Academic PDF (Textbook/Thesis)", type="pdf")
-    tone = st.selectbox("Linguistic Persona", ["Professor (Formal)", "Munnabhai (Colloquial)", "Simplified"])
-    
-    styles = {
-        "Professor (Formal)": "Academic expert. Use rigorous terminology and bullet points.",
-        "Munnabhai (Colloquial)": "Munnabhai style. Use Hinglish analogies (Mammu, Circuit) to explain complex logic.",
-        "Simplified": "Explain like I'm 10 years old."
-    }
-
     if file:
-        if "db" not in st.session_state or st.sidebar.button("Re-index Vector Space"):
-            with st.spinner("Executing Recursive Semantic Chunking..."):
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    tmp.write(file.read())
-                    tmp_path = tmp.name
-                
-                loader = PyMuPDFLoader(tmp_path)
-                data = loader.load()
-                # PhD Depth: Small overlap (15%) to maintain context continuity
-                splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
-                chunks = splitter.split_documents(data)
-                
-                try:
-                    st.session_state.db = FAISS.from_documents(chunks, embeddings)
-                    st.success("Vector Database Online.")
-                except Exception as e:
-                    st.error(f"Vectorization Error: {e}. Ensure API key has 'Generative AI' permissions.")
-                finally:
-                    os.remove(tmp_path)
+        if "pdf_content" not in st.session_state:
+            with st.spinner("Extracting Global Semantic Context..."):
+                doc = fitz.open(stream=file.read(), filetype="pdf")
+                st.session_state.pdf_content = "".join([page.get_text() for page in doc])
+                st.success("Global Context Cached.")
 
-        if "db" in st.session_state:
-            query = st.chat_input("Enter concept query...")
-            if query:
-                with st.chat_message("user"): st.write(query)
+        query = st.chat_input("Input research/conceptual query...")
+        if query:
+            with st.chat_message("user"): st.write(query)
+            with st.spinner("Analyzing Global Context..."):
+                # 2026 GROUNDING PROMPT
+                prompt = f"""
+                Persona: {tone}
+                Goal: Pedagogy-first synthesis from provided context.
                 
-                # RETRIEVAL LOGIC
-                retriever = st.session_state.db.as_retriever(search_kwargs={"k": 4})
+                Protocol:
+                1. Use the [TEXTBOOK CONTEXT] to answer. 
+                2. If answer found: Conclude with [SOURCE: VERIFIED TEXTBOOK].
+                3. If answer extrapolated: Start with [SOURCE: PARAMETRIC AI KNOWLEDGE].
                 
-                # LCEL PROMPT TEMPLATE
-                template = """
-                Persona: {tone_style}
-                Context: {context}
-                Question: {question}
+                TEXTBOOK CONTEXT: {st.session_state.pdf_text[:450000]}
                 
-                Instruction: If answer is in Context, add [SOURCE: TEXTBOOK]. Else, answer from parametric memory and add [SOURCE: GENERAL AI].
-                
-                Response:"""
-                prompt = ChatPromptTemplate.from_template(template)
-                
-                # MODULAR LCEL CHAIN
-                chain = (
-                    {"context": retriever | format_docs, "question": RunnablePassthrough(), "tone_style": lambda x: styles[tone]}
-                    | prompt | llm | StrOutputParser()
-                )
-                
-                with st.chat_message("assistant"):
-                    st.markdown(chain.invoke(query))
+                USER QUERY: {query}
+                """
+                response = execute_neural_query(prompt, gemini_key)
+                with st.chat_message("assistant"): st.markdown(response)
 
-# --- PAGE 6: GAP ANALYSIS ---
-elif choice == "Page 6: Research Gaps":
+# --- MODULE 6: GAP ANALYSIS ---
+elif choice == "Module 6: Gap Analysis":
     st.title("🔬 Automated Research Gap Analysis")
-    topic = st.text_input("Enter Specialized Research Topic")
-    if topic and st.button("Synthesize Gaps"):
-        with st.spinner("Analyzing current SOTA..."):
-            ans = llm.invoke(f"PhD Supervisor: Identify 3 distinct research gaps for '{topic}'. Highlight interdisciplinary potential.")
-            st.write(ans.content)
+    topic = st.text_input("Enter Specialized Domain (e.g., Federated Learning in IoT)")
+    if topic and st.button("Generate Gap Synthesis"):
+        with st.spinner("Scanning Research Frontiers..."):
+            ans = execute_neural_query(f"Identify 3 novel research gaps and a problem statement for: {topic}.", gemini_key)
+            st.write(ans)
