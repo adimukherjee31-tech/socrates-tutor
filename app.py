@@ -1,10 +1,9 @@
 import streamlit as st
 import os
-import tempfile
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain_community.document_loaders import PyMuPDFLoader
-from langchain_community.vectorstores import FAISS
+import requests
+import fitz  # PyMuPDF
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Socrates AI Tutor", layout="wide", page_icon="🎓")
@@ -12,29 +11,41 @@ st.set_page_config(page_title="Socrates AI Tutor", layout="wide", page_icon="�
 # --- SIDEBAR & AUTH ---
 with st.sidebar:
     st.title("🔑 Setup")
-    api_key = st.text_input("Enter Gemini API Key", type="password")
-    st.info("Get a free key at: aistudio.google.com")
+    gemini_key = st.text_input("Enter Gemini API Key", type="password")
+    hf_token = st.text_input("Enter HuggingFace Token (for Math/Embeddings)", type="password")
+    st.info("Get Keys at: aistudio.google.com and huggingface.co/settings/tokens")
     
     st.divider()
     menu = ["Page 1: Home", "Page 2: Exam Roadmaps", "Page 4: AI Textbook Reader", "Page 6: Research Gaps"]
     choice = st.selectbox("Navigation", menu)
 
-if not api_key:
-    st.warning("Please enter your Gemini API Key in the sidebar to begin.")
+if not gemini_key or not hf_token:
+    st.warning("Please enter both API keys in the sidebar to start.")
     st.stop()
 
-# Initialize Components
-try:
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key, temperature=0.3)
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
-except Exception as e:
-    st.error(f"Setup Error: {e}")
-    st.stop()
+# --- LIGHTWEIGHT AI FUNCTIONS (STABLE) ---
+def get_embeddings(texts, token):
+    # Uses HuggingFace API for Math - No local torch errors!
+    url = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.post(url, headers=headers, json={"inputs": texts})
+    return response.json()
+
+class CloudEmbeddings:
+    def __init__(self, token): self.token = token
+    def embed_documents(self, texts): return get_embeddings(texts, self.token)
+    def embed_query(self, text): return get_embeddings([text], self.token)[0]
+
+def call_gemini(prompt, key):
+    # Direct API call to Gemini - No Google library errors!
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    response = requests.post(url, json=payload)
+    return response.json()['candidates'][0]['content']['parts'][0]['text']
 
 # --- PAGE 1: HOME ---
 if choice == "Page 1: Home":
     st.title("🎓 Socrates: Pedagogical AI Tutor")
-    st.subheader("Interdisciplinary Learning Hub")
     col1, col2 = st.columns(2)
     with col1:
         st.write("### 📚 Core Subjects")
@@ -46,55 +57,50 @@ if choice == "Page 1: Home":
         st.write("### 🔗 Intersections")
         st.button("AI & Physics Intersection")
         st.button("CS & EE Intersection")
-        st.button("Mechanical & AI Intersection")
+        st.button("AI, CS & ECE Intersection")
 
 # --- PAGE 2: ROADMAPS ---
 elif choice == "Page 2: Exam Roadmaps":
     st.title("Academic Roadmaps")
-    exam = st.selectbox("Select Exam", ["UGC NET", "GATE", "CSIR NET", "IIT JAM", "CUET"])
-    branch = st.multiselect("Select Branch", ["CSE", "AI & ML", "EEE", "ECE", "MECH", "MATH", "PHYSICS"])
-    if st.button("Generate Roadmap"):
-        if branch:
-            st.success(f"Roadmap for {exam} Generated")
-            st.table({"Phase": ["Foundational", "Core", "Practice"], "Topics": ["Math", f"{branch[0]} Core", "PYQs"]})
+    exam = st.selectbox("Select Exam", ["UGC NET", "GATE", "CSIR NET", "IIT JAM"])
+    branch = st.multiselect("Select Branch", ["CSE", "AI & ML", "EEE", "ECE", "MECH"])
+    if st.button("Generate"):
+        st.success(f"Roadmap for {exam} Generated")
+        st.table({"Phase": ["Basic", "Core", "PYQ"], "Goal": ["Maths", f"{branch[0] if branch else 'Branch'} Skills", "Exams"]})
 
-# --- PAGE 4: AI READER (RAG) ---
+# --- PAGE 4: AI READER ---
 elif choice == "Page 4: AI Textbook Reader":
     st.title("Intelligent Textbook Assistant")
-    uploaded_file = st.file_uploader("Upload Textbook (PDF)", type="pdf")
-    tone = st.selectbox("Teaching Style", ["Professor", "Munnabhai (Hinglish)", "Simple"])
+    file = st.file_uploader("Upload PDF", type="pdf")
+    tone = st.selectbox("Style", ["Professor", "Munnabhai", "Simple"])
     
-    if uploaded_file:
-        if "db" not in st.session_state or st.sidebar.button("Reload PDF"):
-            with st.spinner("Analyzing textbook..."):
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    tmp.write(uploaded_file.read())
-                    tmp_path = tmp.name
-                loader = PyMuPDFLoader(tmp_path)
-                data = loader.load()
-                splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
-                chunks = splitter.split_documents(data)
-                st.session_state.db = FAISS.from_documents(chunks, embeddings)
-                os.remove(tmp_path)
+    if file:
+        if "db" not in st.session_state:
+            with st.spinner("Processing..."):
+                doc = fitz.open(stream=file.read(), filetype="pdf")
+                text = "".join([page.get_text() for page in doc])
+                splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+                chunks = splitter.split_text(text)
+                
+                # Setup Vector DB using our stable cloud math
+                embed_engine = CloudEmbeddings(hf_token)
+                st.session_state.db = FAISS.from_texts(chunks, embed_engine)
                 st.success("Ready!")
 
-        query = st.chat_input("Ask a question from the book...")
+        query = st.chat_input("Ask from textbook...")
         if query:
             with st.chat_message("user"): st.write(query)
-            docs = st.session_state.db.similarity_search(query, k=4)
-            context = "\n\n".join([d.page_content for d in docs])
+            context_docs = st.session_state.db.similarity_search(query, k=3)
+            context = "\n".join([d.page_content for d in context_docs])
             
-            prompt = f"""You are Socrates, a tutor. Context: {context}. Question: {query}. 
-            If answer is in context, end with [SOURCE: TEXTBOOK]. 
-            Else, start with [SOURCE: GENERAL AI]. Style: {tone}"""
-            
-            response = llm.invoke(prompt)
-            with st.chat_message("assistant"): st.markdown(response.content)
+            prompt = f"Style: {tone}. Context: {context}. Question: {query}. End with [SOURCE: TEXTBOOK] if found, else start with [SOURCE: AI]."
+            answer = call_gemini(prompt, gemini_key)
+            with st.chat_message("assistant"): st.markdown(answer)
 
 # --- PAGE 6: RESEARCH GAPS ---
 elif choice == "Page 6: Research Gaps":
     st.title("Research Gap Analysis")
     topic = st.text_input("Enter Topic")
     if topic and st.button("Analyze"):
-        ans = llm.invoke(f"Identify 3 research gaps for '{topic}'.")
-        st.write(ans.content)
+        ans = call_gemini(f"List 3 research gaps for {topic}.", gemini_key)
+        st.write(ans)
