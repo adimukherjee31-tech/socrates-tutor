@@ -1,9 +1,8 @@
 import streamlit as st
 import os
 from langchain_huggingface import HuggingFaceEndpoint, HuggingFaceEmbeddings
-from langchain_community.document_loaders import PyMuPDFLoader  # Faster for big books
+from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_community.vectorstores import FAISS
-from langchain.chains import RetrievalQA
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 st.set_page_config(page_title="Socrates Tutor", layout="wide", page_icon="🎓")
@@ -23,14 +22,17 @@ if not api_key:
     st.stop()
 
 # Initialize AI Brain
-repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
-llm = HuggingFaceEndpoint(repo_id=repo_id, huggingfacehub_api_token=api_key, temperature=0.3)
+try:
+    repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
+    llm = HuggingFaceEndpoint(repo_id=repo_id, huggingfacehub_api_token=api_key, temperature=0.3, max_new_tokens=512)
+except Exception as e:
+    st.error("Connection Error. Please check your Token.")
+    st.stop()
 
-# --- PAGE 1: INTERDISCIPLINARY HOME ---
+# --- PAGE 1: HOME ---
 if choice == "Page 1: Home":
     st.title("Socrates Tutor")
     st.subheader("Interdisciplinary Learning Hub")
-    
     col1, col2 = st.columns(2)
     with col1:
         st.write("### 📚 Core Subjects")
@@ -39,7 +41,6 @@ if choice == "Page 1: Home":
         st.button("Learn EEE / ECE")
         st.button("Learn Mechanical Engineering")
         st.button("Learn AI & ML")
-
     with col2:
         st.write("### 🔗 Intersections")
         st.button("AI & Physics Intersection")
@@ -52,74 +53,61 @@ elif choice == "Page 2: Exam Roadmaps":
     st.title("Academic Roadmaps")
     exam = st.selectbox("Select Exam", ["GATE", "UGC NET", "IIT JAM", "CUET", "CSIR NET"])
     branch = st.multiselect("Select Branch", ["MECH", "ECE", "DS & AI", "CSE", "MATH", "PHYSICS", "EEE"])
-    
     if st.button("Display Syllabus & Roadmap"):
-        st.info(f"Generating Roadmap for {exam} ({', '.join(branch)})...")
+        st.info(f"Generating Roadmap for {exam}...")
         st.success("✅ Roadmap Generated Successfully")
-        st.table({
-            "Phase": ["Foundational", "Core Technical", "Advanced/Practice"],
-            "Focus": ["Math & Aptitude", f"Standard {branch[0] if branch else 'Branch'} Subjects", "Previous Papers & AI Analysis"],
-            "Status": ["Ready", "Ready", "Coming Soon"]
-        })
+        st.table({"Phase": ["Foundational", "Core Technical", "Practice"], "Focus": ["Math", f"Branch Topics", "PYQs"], "Status": ["Ready", "Ready", "Soon"]})
 
-# --- PAGE 4: BIG TEXTBOOK READER (RAG) - FIXED ---
+# --- PAGE 4: AI READER (STABLE RAG) ---
 elif choice == "Page 4: AI Textbook Reader":
     st.title("Intelligent Textbook Assistant")
-    st.write("Optimized for large textbooks and academic papers.")
-    
     uploaded_file = st.file_uploader("Upload Large PDF (Textbook)", type="pdf")
     tone = st.selectbox("Explanation Style", ["Professor Tone", "UGC/GATE Coach", "Corporate Interviewer", "Ivy League Student", "Munnabhai Lingo"])
     
     if uploaded_file:
-        with st.spinner("Analyzing large document... this may take a moment."):
-            with open("big_book.pdf", "wb") as f:
-                f.write(uploaded_file.getvalue())
-            
-            loader = PyMuPDFLoader("big_book.pdf")
-            data = loader.load()
-            
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=150)
-            docs = text_splitter.split_documents(data)
-            
-            if len(docs) > 0:
-                embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-                vectorstore = FAISS.from_documents(docs, embeddings)
+        # Use session state to avoid re-processing the PDF on every question
+        if "vectorstore" not in st.session_state or st.sidebar.button("Re-process PDF"):
+            with st.spinner("Analyzing document... (One-time process)"):
+                with open("temp.pdf", "wb") as f:
+                    f.write(uploaded_file.getvalue())
+                loader = PyMuPDFLoader("temp.pdf")
+                data = loader.load()
+                splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
+                docs = splitter.split_documents(data)
+                embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+                st.session_state.vectorstore = FAISS.from_documents(docs, embeddings)
+                st.success("Document analyzed!")
+
+        query = st.text_input("Ask a question about any concept in the book:")
+        if query:
+            with st.spinner("Thinking..."):
+                # STEP 1: Manually Retrieve chunks
+                search_results = st.session_state.vectorstore.similarity_search(query, k=3)
+                context_text = "\n\n".join([doc.page_content for doc in search_results])
                 
-                query = st.text_input("Ask a question about any concept in the book:")
-                if query:
-                    qa = RetrievalQA.from_chain_type(
-                        llm=llm, 
-                        chain_type="stuff", 
-                        retriever=vectorstore.as_retriever(search_kwargs={"k": 3})
-                    )
-                    prompt = f"Act as a {tone}. Explain this concept based on the document: {query}"
-                    
-                    # --- THE FIX IS HERE ---
-                    # We pass a dictionary with the key 'query' instead of a plain string
-                    response = qa.invoke({"query": prompt}) 
-                    st.markdown(f"### Answer:\n {response['result']}")
-            else:
-                st.error("Document analysis failed. Ensure the PDF has searchable text.")
+                # STEP 2: Manually Construct Prompt
+                final_prompt = f"""
+                You are an expert tutor acting in a {tone}. 
+                Use the following context from a textbook to answer the question.
+                
+                Context: {context_text}
+                
+                Question: {query}
+                
+                Answer:"""
+                
+                # STEP 3: Directly call LLM (Bypasses the buggy QA Chain)
+                response = llm.invoke(final_prompt)
+                st.markdown(f"### Answer:\n {response}")
 
 # --- PAGE 6: RESEARCH GAPS ---
 elif choice == "Page 6: Research Gaps":
     st.title("Advanced Research Gap Analysis")
-    topic = st.text_input("Enter Topic Name (e.g., Genetic Algorithms in Thermal Systems)")
-    exam_context = st.selectbox("Identify gaps based on which syllabus?", ["CSIR NET", "UGC NET", "GATE", "IIT JAM"])
-    
-    if topic:
-        if st.button("Generate Gap Analysis"):
-            with st.spinner("Synthesizing current research trends..."):
-                gap_prompt = f"""
-                Act as a PhD Research Supervisor. 
-                Perform a research gap analysis on the topic: '{topic}' 
-                considering the current {exam_context} curriculum and recent academic literature.
-                Identify 3 specific research gaps, a list of potential literature review papers, and a suggested research vision.
-                """
-                analysis = llm.invoke(gap_prompt)
-                
-                st.markdown("### 🔍 Gap Analysis Results")
-                st.write(analysis)
-                
-                st.divider()
-                st.info("💡 Tip: Use these gaps to frame your PhD Problem Statement.")
+    topic = st.text_input("Enter Topic Name")
+    exam_context = st.selectbox("Context", ["CSIR NET", "UGC NET", "GATE"])
+    if topic and st.button("Generate Gap Analysis"):
+        with st.spinner("Synthesizing..."):
+            gap_prompt = f"Act as a PhD Supervisor. Identify 3 research gaps for '{topic}' within '{exam_context}' syllabus."
+            analysis = llm.invoke(gap_prompt)
+            st.markdown("### 🔍 Gap Analysis Results")
+            st.write(analysis)
