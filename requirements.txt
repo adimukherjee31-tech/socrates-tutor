@@ -1,5 +1,8 @@
 streamlit
+langchain>=0.1.0
+langchain-community
+langchain-google-genai
+langchain-text-splitters
 pymupdf
 faiss-cpu
-langchain-text-splitters
-requests
+protobuf==3.20.3
