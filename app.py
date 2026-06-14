@@ -3,7 +3,7 @@ import requests
 import fitz  # PyMuPDF
 import os
 
-# --- 2026 RESEARCH CONFIG ---
+# --- 2026 RESEARCH FRAMEWORK CONFIG ---
 st.set_page_config(page_title="Socrates AI: Neural Framework", layout="wide", page_icon="🎓")
 
 # --- UI STYLING ---
@@ -34,23 +34,29 @@ def extract_pdf_text(uploaded_file):
     doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
     return "".join([page.get_text() for page in doc])
 
-# --- STABLE NEURAL ENGINE (60s Timeout) ---
+# --- PHuD-LEVEL NEURAL FALLBACK ENGINE ---
 def execute_neural_query(prompt, key):
-    # Stable v1 endpoint for 2026 Production Standards
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={key}"
-    try:
-        # Increased timeout to 60s for Long-Context processing
-        response = requests.post(
-            url, 
-            json={"contents": [{"parts": [{"text": prompt}]}]}, 
-            timeout=60 
-        )
-        if response.status_code == 200:
-            return response.json()['candidates'][0]['content']['parts'][0]['text']
-        else:
-            return f"❌ Neural Error: {response.status_code}. Try a shorter query."
-    except Exception as e:
-        return f"❌ Transport Failure: System is overloaded. Please try again in 10 seconds."
+    # We try different versions and models to ensure zero failure
+    # Version v1beta is often required for the latest Flash models
+    strategies = [
+        {"ver": "v1beta", "mod": "gemini-1.5-flash"},
+        {"ver": "v1", "mod": "gemini-pro"},
+        {"ver": "v1beta", "mod": "gemini-1.5-pro"}
+    ]
+    
+    headers = {'Content-Type': 'application/json'}
+    data = {"contents": [{"parts": [{"text": prompt}]}]}
+    
+    for strategy in strategies:
+        url = f"https://generativelanguage.googleapis.com/{strategy['ver']}/models/{strategy['mod']}:generateContent?key={key}"
+        try:
+            response = requests.post(url, headers=headers, json=data, timeout=45)
+            if response.status_code == 200:
+                return response.json()['candidates'][0]['content']['parts'][0]['text']
+        except:
+            continue
+            
+    return "❌ SYSTEM ERROR: The Neural Engine could not be reached. Please check your API Key permissions or regional access."
 
 # --- MODULE 1: DISCOVERY ---
 if choice == "Module 1: Discovery":
@@ -74,7 +80,7 @@ elif choice == "Module 2: Roadmaps":
 # --- MODULE 4: TEXTBOOK AGENT ---
 elif choice == "Module 4: Textbook Agent":
     st.title("🔍 Intelligent Research Assistant")
-    st.markdown("##### Framework: Long-Context Semantic Synthesis")
+    st.markdown("##### Framework: Long-Context Neural Synthesis")
     file = st.file_uploader("Upload Pedagogical PDF", type="pdf")
     tone = st.selectbox("Style", ["Professor Tone", "Munnabhai (Hinglish)", "Simple"])
     
@@ -83,14 +89,15 @@ elif choice == "Module 4: Textbook Agent":
         query = st.chat_input("Ask a concept query...")
         if query:
             with st.chat_message("user"): st.write(query)
-            with st.spinner("Synthesizing from Global Context..."):
-                # Using 50k chars for high speed + high research fidelity
+            with st.spinner("Executing Neural Synthesis..."):
+                # Using 40k characters for ultra-fast, stable 2026 performance
                 prompt = f"""
                 Persona: {tone}
-                Instruction: Answer using the TEXTBOOK CONTEXT provided. 
-                Use [SOURCE: TEXTBOOK] if found.
+                Task: Answer using the TEXTBOOK CONTEXT below. 
+                Reference specific facts from the context.
+                End with [SOURCE: VERIFIED TEXTBOOK] if the answer is found in the text.
                 
-                TEXTBOOK CONTEXT: {pdf_text[:50000]}
+                TEXTBOOK CONTEXT: {pdf_text[:40000]}
                 
                 QUESTION: {query}
                 """
@@ -100,8 +107,4 @@ elif choice == "Module 4: Textbook Agent":
 # --- MODULE 6: GAP ANALYSIS ---
 elif choice == "Module 6: Gap Analysis":
     st.title("🔬 Automated Research Gap Analysis")
-    topic = st.text_input("Enter Research Domain")
-    if topic and st.button("Generate Gaps"):
-        with st.spinner("Analyzing SOTA..."):
-            ans = execute_neural_query(f"Identify 3 novel research gaps for: {topic}.", gemini_key)
-            st.write(ans)
+    topic = st.text_input("Enter Re
