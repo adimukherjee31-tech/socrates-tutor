@@ -3,8 +3,8 @@ import requests
 import fitz  # PyMuPDF
 import os
 
-# --- 2026 PhD RESEARCH CONFIG ---
-st.set_page_config(page_title="Socrates: Pedagogical AI", layout="wide", page_icon="🎓")
+# --- 2026 RESEARCH FRAMEWORK CONFIG ---
+st.set_page_config(page_title="Socrates AI: Neural Framework", layout="wide", page_icon="🎓")
 
 # --- UI STYLING ---
 st.markdown("""
@@ -18,98 +18,103 @@ st.markdown("""
 with st.sidebar:
     st.title("🔬 Neural Orchestrator")
     raw_key = st.text_input("Enter Gemini API Key", type="password")
-    api_key = raw_key.strip()
+    gemini_key = raw_key.strip() 
     
     st.divider()
-    menu = ["Page 1: Discovery Hub", "Page 2: Exam Roadmaps", "Page 4: Textbook Agent", "Page 6: Research Gaps"]
+    menu = ["Module 1: Discovery Hub", "Module 2: Synthesis Roadmaps", "Module 4: Textbook Agent", "Module 6: Gap Analysis"]
     choice = st.selectbox("Navigation", menu)
+    
+    st.divider()
+    debug_mode = st.checkbox("Show Neural Diagnostics")
 
-if not api_key:
-    st.warning("Please enter your Gemini API Key to initialize the Neural Engine.")
+if not gemini_key:
+    st.warning("Awaiting API Key for Neural Initialization...")
     st.stop()
 
-# --- THE NEURAL RESILIENCE LAYER (The Fix) ---
-def execute_neural_query(prompt, key):
-    # This list covers all possible 2026 stable and beta endpoints
-    # It tries the most likely ones first
-    configurations = [
-        ("v1", "gemini-1.5-flash"),
-        ("v1beta", "gemini-1.5-flash-latest"),
-        ("v1", "gemini-pro"),
-        ("v1beta", "gemini-1.5-pro")
-    ]
-    
-    last_error = ""
-    for version, model in configurations:
-        url = f"https://generativelanguage.googleapis.com/{version}/models/{model}:generateContent?key={key}"
-        try:
-            response = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=20)
-            if response.status_code == 200:
-                return response.json()['candidates'][0]['content']['parts'][0]['text']
-            else:
-                last_error = f"{model} ({version}): {response.status_code}"
-        except:
-            continue
-            
-    return f"❌ NEURAL LINK ERROR: All endpoints failed. (Last Attempt: {last_error}). Please verify your API Key permissions at aistudio.google.com."
+# --- HIGH-SPEED PDF EXTRACTION ---
+@st.cache_data(show_spinner=False)
+def extract_pdf_content(uploaded_file):
+    doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+    return "".join([page.get_text() for page in doc])
 
-# --- PAGE 1: DISCOVERY HUB ---
-if choice == "Page 1: Discovery Hub":
+# --- STABLE 2026 NEURAL ENGINE ---
+def execute_neural_query(prompt, key):
+    # Using the most robust universal endpoint for 2026
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
+    headers = {'Content-Type': 'application/json'}
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        res_json = response.json()
+        
+        if response.status_code == 200:
+            return res_json['candidates'][0]['content']['parts'][0]['text']
+        else:
+            if debug_mode:
+                st.sidebar.error(f"RAW API ERROR: {res_json}")
+            return f"❌ NEURAL LINK ERROR {response.status_code}: {res_json.get('error', {}).get('message', 'Unknown Error')}"
+    except Exception as e:
+        return f"❌ TRANSPORT FAILURE: {str(e)}"
+
+# --- MODULE 1: DISCOVERY HUB ---
+if choice == "Module 1: Discovery Hub":
     st.title("🎓 Socrates: Discovery Hub")
     col1, col2 = st.columns(2)
     with col1:
         st.write("### 📚 Core Disciplines")
-        st.button("Learn Math")
-        st.button("Learn Core CS")
-        st.button("Learn AI & ML")
-        st.button("Learn Mechanical Engineering")
+        if st.button("Learn Math"): st.toast("Math Logic Engine: ONLINE")
+        if st.button("Learn Core CS"): st.toast("CS Systems Engine: ONLINE")
+        if st.button("Learn AI & ML"): st.toast("Neural Stochastic Engine: ONLINE")
+        if st.button("Learn Mechanical Engineering"): st.toast("Mech Dynamics Engine: ONLINE")
     with col2:
         st.write("### 🔗 Intersections")
-        st.button("AI & Physics Intersection")
-        st.button("CS & EE Intersection")
-        st.button("AI, CS & ECE Intersection")
-        st.button("Mechanical & AI Intersection")
+        if st.button("AI & Physics Intersection"): st.toast("Synthesizing...")
+        if st.button("CS & EE Intersection"): st.toast("Synthesizing...")
+        if st.button("AI, CS & ECE Intersection"): st.toast("Synthesizing...")
+        if st.button("Mechanical & AI Intersection"): st.toast("Synthesizing...")
 
-# --- PAGE 2: ROADMAPS ---
-elif choice == "Page 2: Exam Roadmaps":
-    st.title("Academic Roadmap Synthesis")
-    exam = st.selectbox("Target Exam", ["GATE", "UGC NET", "CSIR NET", "IIT JAM", "CUET"])
-    branch_list = ["CSE", "AI & ML", "EEE", "ECE", "MECH", "MATH", "PHYSICS"]
-    branch = st.multiselect("Research Branches", branch_list)
-    if st.button("Synthesize Roadmap") and branch:
-        st.success(f"Roadmap for {exam} Synthesized")
-        st.table({"Phase": ["Theory", "Domain", "Practice"], "Focus": ["Foundational Logic", f"{branch[0]} Core", "Paper Review"]})
+# --- MODULE 2: ROADMAPS ---
+elif choice == "Module 2: Synthesis Roadmaps":
+    st.title("Curriculum Synthesis Roadmap")
+    exam = st.selectbox("Academic Target", ["UGC NET", "GATE", "CSIR NET", "IIT JAM", "CUET"])
+    branches = st.multiselect("Core Research Branches", ["CSE", "AI & ML", "EEE", "ECE", "MECH", "MATH", "PHYSICS"])
+    if st.button("Synthesize Roadmap"):
+        if branches:
+            st.success(f"Roadmap for {exam} Synthesized")
+            st.table({"Phase": ["Foundational", "Domain Depth", "Empirical"], "Focus": ["Mathematical Logic", f"{branches[0]} Core", "Paper Review"]})
+        else:
+            st.warning("Please select a branch.")
 
-# --- PAGE 4: TEXTBOOK AGENT ---
-elif choice == "Page 4: Textbook Agent":
-    st.title("🔍 Intelligent Research Assistant")
+# --- MODULE 4: TEXTBOOK AGENT ---
+elif choice == "Module 4: Textbook Agent":
+    st.title("🔍 Holistic Textbook Assistant")
     file = st.file_uploader("Upload Pedagogical Source (PDF)", type="pdf")
-    tone = st.selectbox("Style", ["Professor Tone", "Munnabhai (Hinglish)", "Simple"])
+    tone = st.selectbox("Pedagogical Style", ["Professor Tone", "Munnabhai (Hinglish)", "Simple (ELI5)"])
     
     if file:
-        if "pdf_text" not in st.session_state:
-            with st.spinner("Extracting Global Context..."):
-                doc = fitz.open(stream=file.read(), filetype="pdf")
-                st.session_state.pdf_text = "".join([page.get_text() for page in doc])
-                st.success("Global Context Cached.")
-
-        query = st.chat_input("Ask a conceptual query...")
+        pdf_text = extract_pdf_content(file)
+        query = st.chat_input("Input research/conceptual query...")
+        
         if query:
             with st.chat_message("user"): st.write(query)
-            with st.spinner("Synthesizing..."):
+            with st.spinner("Analyzing Global Context..."):
+                # Balanced context for speed/stability
                 prompt = f"""
-                Persona: {tone}.
-                Instruction: Answer from context. Use [SOURCE: TEXTBOOK] if found.
-                CONTEXT: {st.session_state.pdf_text[:30000]}
-                QUESTION: {query}
+                Persona: {tone}
+                Task: Answer from context. Use point-wise lists. 
+                Context: {pdf_text[:40000]}
+                Question: {query}
+                Rule: If answer found, add [SOURCE: TEXTBOOK].
                 """
-                response = execute_neural_query(prompt, api_key)
+                response = execute_neural_query(prompt, gemini_key)
                 with st.chat_message("assistant"): st.markdown(response)
 
-# --- PAGE 6: RESEARCH GAPS ---
-elif choice == "Page 6: Research Gaps":
+# --- MODULE 6: GAP ANALYSIS ---
+elif choice == "Module 6: Gap Analysis":
     st.title("🔬 Automated Research Gap Analysis")
     topic = st.text_input("Enter Specialized Domain")
     if topic and st.button("Generate Gap Synthesis"):
-        ans = execute_neural_query(f"Identify 3 unique research gaps for: {topic}.", api_key)
-        st.write(ans)
+        with st.spinner("Scanning Research Frontiers..."):
+            ans = execute_neural_query(f"Identify 3 unique research gaps for: {topic}.", gemini_key)
+            st.write(ans)
